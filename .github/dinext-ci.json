@@ -1,0 +1,8 @@
+{
+  "app": "doctype_permission",
+  "package_dir": "doctype_permission",
+  "mode": "repository",
+  "gitflow": false,
+  "frontend_tests": false,
+  "skip_test_records": false
+}
