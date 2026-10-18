@@ -28,3 +28,18 @@ release notes, compatibility evidence and manifest. Existing tags are immutable.
 
 Deployment, publishing, paid agents, live smoke and external notifications remain
 disabled. Imported upstream workflows remain under imported-workflows-disabled.
+
+## DocType Permission compatibility
+
+`Dinext acceptance` runs `Compatibility acceptance` for maintained-line PRs and
+pushes. It checks out the current PR test-merge revision and builds an isolated
+Frappe/ERPNext/HRMS 15 bench using pinned public dependency commits. Synthetic
+Employee fixtures provide the baseline required by inherited permission tests.
+All application tests run, including additional tests proposed in the PR.
+
+The normal repository validation profile remains unchanged. Compatibility uses
+temporary runner-only configuration; no deployment secrets or production sites
+are used. Empty, missing, skipped or unsuccessful JUnit results fail acceptance.
+The `compatibility-results` artifact retains JUnit and tested revision/dependency
+provenance for 14 days. Completion refreshes the existing trusted integration
+policy; old checks cannot qualify a different PR head or test-merge revision.
