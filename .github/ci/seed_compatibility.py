@@ -12,9 +12,11 @@ try:
     frappe.set_user('Administrator')
     from hrms.tests.test_utils import before_tests
     before_tests()
+    companies = frappe.get_all('Company', pluck='name', order_by='name')
+    assert companies, 'The standard ERPNext test setup must create a company'
     # The inherited manager test expects an existing employee besides its own.
     frappe.get_doc({'doctype': 'Employee', 'first_name': 'CI baseline employee',
-        'company': '_Test Company', 'status': 'Active', 'gender': 'Male',
+        'company': companies[0], 'status': 'Active', 'gender': 'Male',
         'date_of_birth': '1990-01-01', 'date_of_joining': '2020-01-01',
         'create_user_permission': 0}).insert(ignore_permissions=True)
     frappe.db.commit()
