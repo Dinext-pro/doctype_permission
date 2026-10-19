@@ -2,12 +2,8 @@ name: Dinext validation
 'on':
   push:
     branches:
-    - main
-    - develop
-    - main/**
     - dinext/main/**
     - dinext/release/**
-    - release/**
   pull_request: {}
   workflow_dispatch: {}
 permissions:
