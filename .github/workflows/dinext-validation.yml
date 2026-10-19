@@ -5,6 +5,8 @@ name: Dinext validation
     - main
     - develop
     - main/**
+    - dinext/main/**
+    - dinext/release/**
     - release/**
   pull_request: {}
   workflow_dispatch: {}
