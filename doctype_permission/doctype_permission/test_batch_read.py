@@ -144,6 +144,23 @@ class TestBatchSourceRead(unittest.TestCase):
 					self.assertEqual(permission.call_args.kwargs["doc"], "visible")
 		frappe.get_doc.assert_not_called()
 
+	def test_virtual_list_gate_keeps_its_ordinary_name_filter(self):
+		self.meta.is_virtual = True
+
+		def get_list(doctype, *, filters, **kwargs):
+			self.assertEqual(filters, {"name": "visible"})
+			return ["visible"]
+
+		def check(doctype, *, doc, **kwargs):
+			loaded = self.get_doc({"doctype": doctype, **self.rows[doc]})
+			return utils.has_permission(loaded, ptype="read", user=self.user) is not False
+
+		with (
+			patch.object(frappe, "get_list", side_effect=get_list),
+			patch.object(frappe, "has_permission", side_effect=check),
+		):
+			self.assertEqual(batch_read.readable_document_names("Example", ["visible"]), {"visible"})
+
 	def test_nested_scope_restores_outer_scope_and_rejects_other_sites(self):
 		outer = batch_read._ReadScope(
 			frappe.local.site, self.user, "Outer", frozenset({"outer"}), frozenset({"outer"})

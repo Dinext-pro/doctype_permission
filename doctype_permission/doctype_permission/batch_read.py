@@ -95,7 +95,7 @@ def readable_document_names(doctype: str, names: Iterable[str]) -> set[str]:
 			continue
 
 		scope = None
-		if get_doctype_permission_map().get(doctype):
+		if not meta.is_virtual and not meta.issingle and get_doctype_permission_map().get(doctype):
 			try:
 				visible = frappe.get_list(
 					doctype, filters={"name": ("in", batch)}, pluck="name", limit_page_length=0
