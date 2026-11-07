@@ -14,13 +14,13 @@ class TestPortalIssuePermission(FrappeTestCase):
 		notes = [self._insert_note().name, self._insert_note().name]
 		self._add_note_permission()
 		reader = self._insert_user("batch-reader", "Desk User", "System User")
-		frappe.share.add("Note", notes[0], user=reader, read=1, flags={"ignore_share_permission": True})
+		frappe.share.add("Note", notes[0], user=reader, read=1)
 		frappe.set_user(reader)
 		expected = {name for name in notes if frappe.has_permission("Note", "read", doc=name)}
 		self.assertEqual(expected, {notes[0]})
 		self.assertEqual(readable_document_names("Note", notes), expected)
 		frappe.set_user("Administrator")
-		frappe.share.remove("Note", notes[0], reader, flags={"ignore_share_permission": True})
+		frappe.share.remove("Note", notes[0], reader)
 		frappe.set_user(reader)
 		self.assertEqual(readable_document_names("Note", notes), set())
 
