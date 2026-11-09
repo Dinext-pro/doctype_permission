@@ -1,16 +1,28 @@
 name: Dinext acceptance
 on:
+  workflow_call: {}
   pull_request:
     branches: ['dinext/main/**']
   push:
+    tags: ['v*', 'dinext/**']
     branches: ['dinext/main/**']
   workflow_dispatch: {}
 permissions:
   contents: read
 concurrency:
-  group: dinext-acceptance-${{ github.ref }}
+  group: dinext-acceptance-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  release-context:
+    name: Tag source context
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Verify native tag context
+        run: |
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF" = "refs/tags/$GITHUB_REF_NAME"
   compatibility:
     name: Compatibility acceptance
     runs-on: ubuntu-24.04
