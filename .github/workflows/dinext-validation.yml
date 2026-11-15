@@ -31,3 +31,7 @@ jobs:
       support_ref: main
       mode: repository
       frontend_tests: false
+  acceptance:
+    name: Acceptance
+    if: github.event_name == 'pull_request' && (startsWith(github.base_ref, 'dinext/main/'))
+    uses: ./.github/workflows/dinext-acceptance.yml

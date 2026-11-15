@@ -1,8 +1,6 @@
 name: Dinext acceptance
 on:
   workflow_call: {}
-  pull_request:
-    branches: ['dinext/main/**']
   push:
     tags: ['v*', 'dinext/**']
     branches: ['dinext/main/**']
