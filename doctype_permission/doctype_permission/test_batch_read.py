@@ -131,6 +131,19 @@ class TestBatchSourceRead(unittest.TestCase):
 			self.assertEqual(batch_read.readable_document_names("Example", ["visible"]), {"visible"})
 		self.assertEqual(permission.call_args.kwargs["doc"], "visible")
 
+	def test_opt_in_controller_uses_full_row_and_preserves_native_permission(self):
+		class OptedIn(Document):
+			supports_batched_source_reads = True
+			def __init__(self, *args, **kwargs):
+				super().__init__(*args, **kwargs)
+
+		with (
+			patch.object(batch_read, "get_controller", return_value=OptedIn),
+			patch.object(frappe, "has_permission", return_value=True) as check,
+		):
+			self.assertEqual(batch_read.readable_document_names("Example", ["visible"]), {"visible"})
+		self.assertEqual(check.call_args.kwargs["doc"].name, "visible")
+
 	def test_no_rule_uses_one_permission_map_for_all_batches(self):
 		def check(doctype, *, doc, **kwargs):
 			return utils.has_permission(doc, ptype="read", user=self.user) is None

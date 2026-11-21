@@ -44,7 +44,10 @@ def _load_documents(doctype, names, meta):
 	if (
 		meta.is_virtual
 		or meta.issingle
-		or controller.__init__ is not Document.__init__
+		or (
+			controller.__init__ is not Document.__init__
+			and controller.__dict__.get("supports_batched_source_reads") is not True
+		)
 		or controller.load_from_db is not Document.load_from_db
 		or hasattr(controller, "__setup__")
 	):
