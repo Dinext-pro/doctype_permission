@@ -85,31 +85,44 @@ def readable_document_names(doctype: str, names: Iterable[str]) -> set[str]:
 	meta = frappe.get_meta(doctype)
 	user = frappe.session.user
 	site = frappe.local.site
+	physical = not meta.is_virtual and not meta.issingle
+	admin_existence_only = (
+		user == "Administrator" and physical and not frappe.get_hooks("final_has_permission", {}).get(doctype)
+	)
+	has_rules = physical and not admin_existence_only and bool(get_doctype_permission_map().get(doctype))
 	result = set()
 	for start in range(0, len(names), _BATCH_SIZE):
 		batch = names[start : start + _BATCH_SIZE]
-		if user == "Administrator" and not meta.is_virtual and not meta.issingle:
+		if admin_existence_only:
 			result.update(
 				frappe.get_all(doctype, filters={"name": ("in", batch)}, pluck="name", limit_page_length=0)
 			)
 			continue
 
 		scope = None
-		if not meta.is_virtual and not meta.issingle and get_doctype_permission_map().get(doctype):
-			try:
-				visible = frappe.get_list(
-					doctype, filters={"name": ("in", batch)}, pluck="name", limit_page_length=0
-				)
-			except frappe.PermissionError:
-				visible = []
+		if physical:
+			visible = batch
+			if has_rules:
+				try:
+					visible = frappe.get_list(
+						doctype, filters={"name": ("in", batch)}, pluck="name", limit_page_length=0
+					)
+				except frappe.PermissionError:
+					visible = []
 			scope = _ReadScope(site, user, doctype, frozenset(batch), frozenset(visible))
 
 		documents = _load_documents(doctype, batch, meta)
+		existing_names = set()
+		if documents is None and physical:
+			existing_names.update(
+				frappe.get_all(doctype, filters={"name": ("in", batch)}, pluck="name", limit_page_length=0)
+			)
 		token = _read_scope.set(scope)
 		try:
 			for name in batch:
 				if documents is None:
-					if not meta.is_virtual and not frappe.db.exists(doctype, name):
+					# Preserve native existence semantics for noncanonical names and singletons.
+					if not meta.is_virtual and name not in existing_names and not frappe.db.exists(doctype, name):
 						continue
 					doc = name
 				else:

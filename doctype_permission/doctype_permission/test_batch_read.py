@@ -118,6 +118,32 @@ class TestBatchSourceRead(unittest.TestCase):
 		self.assertEqual(permission.call_args.kwargs["doc"], "visible")
 		frappe.get_doc.assert_not_called()
 
+	def test_custom_controller_batches_existence_without_replacing_native_authorization(self):
+		class Custom(Document):
+			def __init__(self, *args, **kwargs):
+				super().__init__(*args, **kwargs)
+
+		with (
+			patch.object(batch_read, "get_controller", return_value=Custom),
+			patch.object(frappe.db, "exists", side_effect=AssertionError("per-document lookup")),
+			patch.object(frappe, "has_permission", return_value=True) as permission,
+		):
+			self.assertEqual(batch_read.readable_document_names("Example", ["visible"]), {"visible"})
+		self.assertEqual(permission.call_args.kwargs["doc"], "visible")
+
+	def test_no_rule_uses_one_permission_map_for_all_batches(self):
+		def check(doctype, *, doc, **kwargs):
+			return utils.has_permission(doc, ptype="read", user=self.user) is None
+
+		with (
+			patch.object(batch_read, "_BATCH_SIZE", 1),
+			patch.object(utils, "get_doctype_permission_map", return_value={}) as rules,
+			patch.object(frappe, "has_permission", side_effect=check),
+		):
+			self.assertEqual(batch_read.readable_document_names("Example", ["visible", "hidden"]), {"visible", "hidden"})
+		rules.assert_called_once()
+		frappe.get_list.assert_not_called()
+
 	def test_virtual_single_and_custom_loaders_keep_ordinary_loading(self):
 		class Loader(Document):
 			def load_from_db(self):
