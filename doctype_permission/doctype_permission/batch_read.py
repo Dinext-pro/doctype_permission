@@ -8,6 +8,8 @@ import frappe
 from frappe.model.base_document import get_controller
 from frappe.model.document import Document
 
+from doctype_permission.doctype_permission.share_reads import batch_read_shares
+
 _BATCH_SIZE = 500
 _NO_PRECHECK = object()
 
@@ -89,8 +91,10 @@ def readable_document_names(doctype: str, names: Iterable[str]) -> set[str]:
 	user = frappe.session.user
 	site = frappe.local.site
 	physical = not meta.is_virtual and not meta.issingle
+	custom_read_check = physical and get_controller(doctype).has_permission is not Document.has_permission
 	admin_existence_only = (
-		user == "Administrator" and physical and not frappe.get_hooks("final_has_permission", {}).get(doctype)
+		user == "Administrator" and physical and not custom_read_check
+		and not frappe.get_hooks("final_has_permission", {}).get(doctype)
 	)
 	has_rules = physical and not admin_existence_only and bool(get_doctype_permission_map().get(doctype))
 	result = set()
@@ -120,20 +124,30 @@ def readable_document_names(doctype: str, names: Iterable[str]) -> set[str]:
 			existing_names.update(
 				frappe.get_all(doctype, filters={"name": ("in", batch)}, pluck="name", limit_page_length=0)
 			)
-		token = _read_scope.set(scope)
-		try:
-			for name in batch:
-				if documents is None:
-					# Preserve native existence semantics for noncanonical names and singletons.
-					if not meta.is_virtual and name not in existing_names and not frappe.db.exists(doctype, name):
-						continue
-					doc = name
-				else:
-					doc = documents.get(name)
-					if doc is None:
-						continue
-				if frappe.has_permission(doctype, ptype="read", doc=doc, user=user, throw=False):
-					result.add(name)
-		finally:
-			_read_scope.reset(token)
+		share_names = set(documents) if documents is not None else existing_names
+		with batch_read_shares(doctype, share_names, user):
+			token = _read_scope.set(scope)
+			try:
+				for name in batch:
+					if documents is None:
+						# Preserve native existence semantics for noncanonical names and singletons.
+						if not meta.is_virtual and name not in existing_names and not frappe.db.exists(doctype, name):
+							continue
+						doc = name
+					else:
+						doc = documents.get(name)
+						if doc is None:
+							continue
+					if custom_read_check:
+						try:
+							source = frappe.get_doc(doctype, name) if isinstance(doc, str) else doc
+							allowed = source.has_permission("read", user=user)
+						except (frappe.DoesNotExistError, frappe.PermissionError):
+							allowed = False
+					else:
+						allowed = frappe.has_permission(doctype, ptype="read", doc=doc, user=user, throw=False)
+					if allowed:
+						result.add(name)
+			finally:
+				_read_scope.reset(token)
 	return result

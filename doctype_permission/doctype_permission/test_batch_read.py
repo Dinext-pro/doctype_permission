@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -7,7 +8,7 @@ from frappe.model.document import Document
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import random_string
 
-from doctype_permission.doctype_permission import batch_read, utils
+from doctype_permission.doctype_permission import batch_read, share_reads, utils
 
 
 class TestBatchSourceRead(unittest.TestCase):
@@ -23,6 +24,7 @@ class TestBatchSourceRead(unittest.TestCase):
 			patch.object(frappe, "session", frappe._dict(user=self.user)),
 			patch.object(frappe, "get_meta", return_value=self.meta),
 			patch.object(batch_read, "get_controller", return_value=Document),
+			patch.object(batch_read, "batch_read_shares", side_effect=lambda *args: nullcontext()),
 			patch.object(utils, "get_doctype_permission_map", return_value={"Example": ["Rule"]}),
 			patch.object(frappe, "get_all", side_effect=self.get_all),
 			patch.object(frappe.db, "get_values", side_effect=self.get_all),
@@ -261,6 +263,42 @@ class TestBatchSourceRead(unittest.TestCase):
 			patch.object(frappe, "has_permission", side_effect=check),
 		):
 			self.assertEqual(batch_read.readable_document_names("Example", ["visible"]), set())
+
+
+class TestBatchReadShares(unittest.TestCase):
+	def test_reuses_only_this_users_current_read_shares_in_the_batch(self):
+		user = "reader@example.invalid"
+		grants = ["allowed", "allowed"]
+		filters = [["share_name", "=", "allowed"]]
+
+		def native(doctype, user=None, rights=None, *, filters=None, limit=None):
+			if filters == [["share_name", "in", ["allowed", "hidden"]]]:
+				return list(grants)
+			return ["ordinary result"]
+
+		with (
+			patch.object(frappe, "session", frappe._dict(user=user)),
+			patch.object(share_reads, "_native_get_shared", side_effect=native) as lookups,
+			patch.object(frappe.share, "get_shared", lookups),
+		):
+			with share_reads.batch_read_shares("Note", {"allowed", "hidden"}, user):
+				self.assertEqual(frappe.share.get_shared("Note", user, ["read"], filters=filters, limit=1), ["allowed"])
+				self.assertEqual(frappe.share.get_shared("Note", user, ["read"], filters=filters), grants)
+				self.assertEqual(
+					frappe.share.get_shared("Note", user, ["read"], filters=[["share_name", "=", "hidden"]]), []
+				)
+				lookups.assert_called_once()
+				self.assertEqual(frappe.share.get_shared("Note", user, ["write"], filters=filters), ["ordinary result"])
+				self.assertEqual(
+					frappe.share.get_shared("Note", "other@example.invalid", ["read"], filters=filters), ["ordinary result"]
+				)
+				with patch.object(frappe.local, "site", "other.test"):
+					self.assertEqual(frappe.share.get_shared("Note", user, ["read"], filters=filters), ["ordinary result"])
+			self.assertEqual(frappe.share.get_shared("Note", user, ["read"], filters=filters), ["ordinary result"])
+
+			grants.clear()
+			with share_reads.batch_read_shares("Note", {"allowed", "hidden"}, user):
+				self.assertEqual(frappe.share.get_shared("Note", user, ["read"], filters=filters), [])
 
 
 class TestBatchChildUserPermissions(FrappeTestCase):
