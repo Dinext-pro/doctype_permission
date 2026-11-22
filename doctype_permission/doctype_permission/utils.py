@@ -1,5 +1,10 @@
 import frappe
 
+from doctype_permission.doctype_permission.batch_read import (
+	_NO_PRECHECK,
+	_prechecked_permission,
+)
+
 
 def get_doctype_permission(user, doctype):
 	user_roles = frappe.get_roles(user)
@@ -39,7 +44,10 @@ def get_doctype_permission_map():
 	return permission_map
 
 
-def has_permission(doc):
+def has_permission(doc, ptype=None, user=None):
+	prechecked = _prechecked_permission(doc, ptype, user)
+	if prechecked is not _NO_PRECHECK:
+		return prechecked
 	if get_doctype_permission_map().get(doc.doctype):
 		if doc.is_new():
 			return True

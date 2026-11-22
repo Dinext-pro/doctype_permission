@@ -5,10 +5,25 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import random_string
 
+from doctype_permission.doctype_permission.batch_read import readable_document_names
 from doctype_permission.doctype_permission.utils import has_permission
 
 
 class TestPortalIssuePermission(FrappeTestCase):
+	def test_batch_read_matches_standard_shared_document_and_revocation(self):
+		notes = [self._insert_note().name, self._insert_note().name]
+		self._add_note_permission()
+		reader = self._insert_user("batch-reader", "Desk User", "System User")
+		frappe.share.add("Note", notes[0], user=reader, read=1)
+		frappe.set_user(reader)
+		expected = {name for name in notes if frappe.has_permission("Note", "read", doc=name)}
+		self.assertEqual(expected, {notes[0]})
+		self.assertEqual(readable_document_names("Note", notes), expected)
+		frappe.set_user("Administrator")
+		frappe.share.remove("Note", notes[0], reader)
+		frappe.set_user(reader)
+		self.assertEqual(readable_document_names("Note", notes), set())
+
 	def tearDown(self):
 		frappe.set_user("Administrator")
 		frappe.cache.delete_value("doctype_permission_map")
@@ -47,7 +62,7 @@ class TestPortalIssuePermission(FrappeTestCase):
 		frappe.set_user(author)
 		self.assertFalse(frappe.has_permission("Issue", "read"))
 		context = self._build_context(web_form, own_issue)
-		self.assertIs(context.has_delete_permission, False)
+		self.assertFalse(context.has_delete_permission)
 
 	def test_other_users_issue_card_stays_forbidden(self):
 		author = self._insert_user("stranger", "Customer", "Website User")
