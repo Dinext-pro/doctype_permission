@@ -141,7 +141,7 @@ def readable_document_names(doctype: str, names: Iterable[str]) -> set[str]:
 					if custom_read_check:
 						try:
 							source = frappe.get_doc(doctype, name) if isinstance(doc, str) else doc
-							allowed = source.has_permission("read", user=user)
+							allowed = source.has_permission("read")
 						except (frappe.DoesNotExistError, frappe.PermissionError):
 							allowed = False
 					else:

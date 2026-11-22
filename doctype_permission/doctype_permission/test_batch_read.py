@@ -120,6 +120,22 @@ class TestBatchSourceRead(unittest.TestCase):
 		self.assertEqual(permission.call_args.kwargs["doc"], "visible")
 		frappe.get_doc.assert_not_called()
 
+	def test_custom_permission_method_accepts_the_native_positional_call(self):
+		class Custom(Document):
+			def has_permission(self, permission_type=None, verbose=False):
+				return permission_type == "read" and self.name == "visible"
+
+		def get_document(row):
+			doc = Custom.__new__(Custom)
+			doc.name = row["name"]
+			return doc
+
+		with (
+			patch.object(batch_read, "get_controller", return_value=Custom),
+			patch.object(frappe, "get_doc", side_effect=get_document),
+		):
+			self.assertEqual(batch_read.readable_document_names("Example", ["visible", "hidden"]), {"visible"})
+
 	def test_custom_controller_batches_existence_without_replacing_native_authorization(self):
 		class Custom(Document):
 			def __init__(self, *args, **kwargs):
